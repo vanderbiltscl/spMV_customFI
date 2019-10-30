@@ -5,6 +5,9 @@
 #include <ctime>
 #include <cassert>
 #include <sys/time.h>
+#include <cmath>
+#include <random>
+#include <ieee754.h>
 
 using namespace std;
 
@@ -14,7 +17,50 @@ double timer() {
         return ((double) (tp.tv_sec) + tp.tv_usec * 1e-6);
 }
 
-class CSRMatrix{
+class injectedVect{
+   public:
+	vector<double> corrupted_vect;
+	vector<int> potential_injection_sites;
+	
+	injectedVect(){
+	}
+
+	injectedVect(vector<double> init_vect){
+		corrupted_vect = init_vect;
+	}
+
+	void set_init_vect(vector<double> init_vect){
+		corrupted_vect = init_vect;
+	}
+
+	void add_injection_site(int index){
+		potential_injection_sites.push_back(index);
+	}
+
+	void clear_injection_sites(){
+		potential_injection_sites.clear();
+	}
+
+	int inject_failure(){
+		// randomly select a position and flip a random bit
+		random_device random_device;
+		mt19937 engine{random_device()};
+        	uniform_int_distribution<int> dist(
+				0, potential_injection_sites.size() - 1);
+	  	int index = potential_injection_sites[dist(engine)];
+		ieee754_double random_element = {corrupted_vect[index]};
+		random_element.ieee.mantissa1 |= 1u << 16; // set bit 16 of mantissa
+		corrupted_vect[index] = random_element.d;
+		return index;
+	}
+
+	int get_total_corruptions(vector<double> correct_vector){
+		unsigned int i, cnt = 0;
+		for (i=0; i<correct_vector.size(); i++)
+			if (correct_vector[i] != corrupted_vect[i])
+				cnt ++;
+		return cnt;
+	}
 };
 
 class spMV{

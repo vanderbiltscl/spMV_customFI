@@ -73,17 +73,19 @@ class spMV{
         vector<double> matrix;
         vector<int> aj, ai;
         vector<double> vect;
+	injectedVect inject;
 
-        spMV(vector<double> x, const char* file_path){
+        spMV(vector<double> x, const char* file_path, int max_iter){
                 cols = x.size();
                 vect = x;
 		step = 0;
-                max_iterations = 100;
+                max_iterations = max_iter;
 		string fn = file_path;
 		if(fn.substr(fn.find_last_of(".") + 1) == "csr")
 			read_matrix_from_csr(file_path);
 		else
                 	read_matrix_from_file(file_path);
+		inject.set_init_vect(vect);
         }
 
 	void print_vector(){
@@ -111,10 +113,36 @@ class spMV{
 
 	void add_over_vector(vector<double> v2){
 		assert (v2.size() == vect.size());
+		// identify vector elements of high changing velocity
+		int max_velocity = 0;
+		if (step == 0){
+			cout << "Step " << step << ":";
+			for(int i = 0; i < rows; i++)
+			{
+				if(max_velocity < abs(v2[i] - vect[i]))
+					max_velocity = abs(v2[i] - vect[i]);
+			}
+		}
 		for(int i = 0; i < rows; i++)
-			vect[i] += v2[i];
+		{
+			if (step==0){
+				double velocity = abs(v2[i] - vect[i])/max_velocity;
+				if (velocity <= 0.1)
+					inject.add_injection_site(i);
+					//cout << "xs" << velocity << " ";
+				if (velocity > 0.1 && velocity <= 0.5)
+					cout << "s" << velocity << " ";
+				if (velocity > 0.5 && velocity <= 0.9)
+					cout << "f" << velocity << " ";
+				if (velocity > 0.9)
+					cout << "xf" << velocity << " ";
+			}
+			vect[i] = v2[i];
+		}
+		if (step==0)
+			cout << endl;
 	}
-
+	
         vector<double> multiply(){
                 vector<double> result(cols);
 		int r_index;
@@ -179,7 +207,7 @@ class spMV{
                                 	ai.push_back(ai.back());
                         last_row = r;
                         ai.back() += 1;
-                }
+		}
 
                 fin.close();
         }//read_matrix
@@ -191,6 +219,10 @@ class spMV{
 		{
 			result = multiply();
 			add_over_vector(result);
+			step ++;
+			if (step == 1)
+				inject.inject_failure();
+			cout << step << " failures: " << inject.get_total_corruptions(vect) << endl;
 		}
 		return vect;
 	}
@@ -212,7 +244,7 @@ int main(int argc, char* argv[])
 		cout << vect.back() << " ";
 	}
 
-	spMV sim(vect, argv[1]);
+	spMV sim(vect, argv[1], 10);
 	sim.print_matrix();
 
 	vector<double> result;

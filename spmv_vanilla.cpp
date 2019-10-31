@@ -87,44 +87,15 @@ class CSRMatrix{
 		cout << endl;
 	}
 
-	void add_over_vector(vector<double> v2){
-		assert (v2.size() == vect.size());
-		// identify vector elements of high changing velocity
-		int max_velocity = 0;
-		if (step == 0){
-			cout << "Step " << step << ":";
-			for(int i = 0; i < rows; i++)
-			{
-				if(max_velocity < abs(v2[i] - vect[i]))
-					max_velocity = abs(v2[i] - vect[i]);
-			}
-		}
-		for(int i = 0; i < rows; i++)
-		{
-			if (step==0){
-				double velocity = abs(v2[i] - vect[i])/max_velocity;
-				if (velocity <= 0.1)
-					inject.add_injection_site(i);
-					//cout << "xs" << velocity << " ";
-				if (velocity > 0.1 && velocity <= 0.5)
-					cout << "s" << velocity << " ";
-				if (velocity > 0.5 && velocity <= 0.9)
-					cout << "f" << velocity << " ";
-				if (velocity > 0.9)
-					cout << "xf" << velocity << " ";
-			}
-			vect[i] = v2[i];
-		}
-		if (step==0)
-			cout << endl;
-	}
-	
-        vector<double> multiply(){
-                vector<double> result(cols);
+        vector<double> multiply(vector<double> v){
+		int vsize = v.size();
+		assert(cols == vsize);
+
+                vector<double> result(v.size());
 		int r_index;
                 for(int i = 0; i < rows; i++){
                         for(r_index = ai[i]; r_index < ai[i + 1]; r_index++){
-				result[i] += matrix[r_index] * vect[aj[r_index]];
+				result[i] += values[r_index] * v[aj[r_index]];
 			}
 		}
 		return result;
@@ -181,20 +152,80 @@ class CSRMatrix{
 
                 fin.close();
         }//read_matrix
+};
 
-	vector<double> run(){
+class spMV{
+   public:
+        int max_iterations;
+	int step;
+        vector<double> vect;
+	CSRMatrix matrix;
+	injectedVect faulty_vect;
+	function<bool(double)> inject_criteria;
+
+        spMV(vector<double> x,
+	     const char* file_path,
+	     const function<bool(double)> &fct,
+	     int max_iter): matrix(file_path), faulty_vect(x), inject_criteria(fct){
+                vect = x;
+		step = 0;
+                max_iterations = max_iter;
+        }
+
+	void print_vect(){
+		for (vector<double>::const_iterator i = vect.begin(); i != vect.end(); ++i)
+			cout << *i << ' ';
+		cout << endl;
+	}
+
+	void print_matrix(){
+		matrix.print();
+	}
+
+	int get_max_velocity(vector<double> v2){
+		// identify vector elements of high changing velocity
+		int max_velocity = 0;
+		for(size_t i = 0; i < vect.size(); i++)
+		{
+			if(max_velocity < abs(v2[i] - vect[i]))
+				max_velocity = abs(v2[i] - vect[i]);
+		}
+		return max_velocity;
+	}
+
+	int inject_failures(vector<double> v2){
+		int max_velocity = get_max_velocity(v2);
+		// if the elements did not changed
+		if (max_velocity == 0)
+			return -1;
+		for(size_t i = 0; i < vect.size(); i++)
+		{
+			double velocity = abs(v2[i] - vect[i])/max_velocity;
+			if (inject_criteria(velocity))
+				faulty_vect.add_injection_site(i);
+		}
+		return faulty_vect.inject_failure();
+	}
+	
+
+	int run(){
 		vector<double> result;
 		int i;
 		for (i = 0; i < max_iterations; i++)
 		{
-			result = multiply();
-			add_over_vector(result);
+			result = matrix.multiply(vect);
+			faulty_vect = matrix.multiply(faulty_vect.vect);
+			// if the solution converged
+			if (get_max_velocity(result) == 0)
+				break;
 			step ++;
 			if (step == 1)
-				inject.inject_failure();
-			cout << step << " failures: " << inject.get_total_corruptions(vect) << endl;
+				inject_failures(result);
+			vect = result;
+			cout << step << " failures: " << faulty_vect.get_total_corruptions(vect) << endl;
 		}
-		return vect;
+		cout << "Final failure count: " << faulty_vect.get_total_corruptions(vect) << endl;
+		return step;
 	}
 };
 

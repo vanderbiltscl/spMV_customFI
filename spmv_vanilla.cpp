@@ -193,6 +193,7 @@ class spMV{
 
 	void write_failure_to_file(string file_path){
 		ofstream fout(file_path, ios::app);
+		fout << step << ' ';
 		for (vector<int>::const_iterator i = failures_per_step.begin(); i != failures_per_step.end(); ++i)
 			fout << *i << ' ';
 		fout << endl;
@@ -242,9 +243,7 @@ class spMV{
 				inject_failures(result);
 			vect = result;
 			failures_per_step.push_back(faulty_vect.get_total_corruptions(vect));
-			cout << step << " failures: " << failures_per_step.back() << endl;
 		}
-		cout << "Final failure count: " << faulty_vect.get_total_corruptions(vect) << endl;
 		return step;
 	}
 };
@@ -265,38 +264,46 @@ function<bool(double)> get_injection_boundries(int param){
 
 int main(int argc, char* argv[])
 {
-	if (argc < 3)
+	if (argc < 4)
 	{
-		cout << "Usage: " << argv[0] << " matrix_file vector_size [velocity]" << endl;
+		cout << "Usage: " << argv[0] << " matrix_input_file vector_size output_file [velocity]" << endl;
 		cout << "Velocity: [0 off; 1 xslow; 2 slow; 3 fast; 4 xfast]" << endl;
 		cout << "By default faults are not injected (off)" << endl;
 		return 1;
 	}
+	bool verbose = 0;
 	int size = strtol(argv[2], NULL, 10);
-	cout << "Problem size: " << size << endl;
+	if (verbose)
+		cout << "Problem size: " << size << endl;
 
 	// get velocity for identifying injection sites in the vector
 	function<bool(double)> injection_fct = get_injection_boundries(0);
-	if (argc > 3){
-		injection_fct = get_injection_boundries(strtol(argv[3], NULL, 10));
+	if (argc > 4){
+		injection_fct = get_injection_boundries(strtol(argv[4], NULL, 10));
 	}
 
-	for (int loop = 0; loop < 1; loop ++){
-		// create random vector (values between -10 and 10)
+	srand((unsigned) time(NULL));
+	for (int loop = 0; loop < 1000; loop ++){
+		// create random vector (values between 0 and 20)
 		vector<double> vect;
-		srand((unsigned) time(NULL));
-		for (int i =0; i < size; i++)
-				vect.push_back(rand() % 20 - 10);
+		for (int i =0; i < size; i++){
+			vect.push_back(rand() % 20);
+		}
 
-		spMV sim(vect, argv[1], injection_fct, 10);
-		//sim.print_matrix();
+		// create simulation environment
+		spMV sim(vect, argv[1], injection_fct, 100);
+		if (verbose)
+			sim.print_matrix();
 
 		int sim_steps = sim.run();
-		if (sim_steps < 10)
-			cout << "Converged in " << sim_steps << " steps" << endl;
+		cout << sim_steps << " ";
 
-		sim.write_failure_to_file(argv[1] + string(".out"));
+		// write the number of failed sites per steps
+		sim.write_failure_to_file(argv[3]);
+		if (verbose){
+			cout << "steps" << endl << "Multiplication result:"<<endl; 
+			sim.print_vect();
+		}
 	}
-	//cout << "Multiplication result:"<<endl; 
-	//sim.print_vect();
+	cout << endl;
 }

@@ -241,17 +241,16 @@ int main(int argc, char* argv[])
 	cout << "Size: " << size << endl;
 	srand((unsigned) time(NULL));
 	for (int i =0; i < size; i++){
-        	vect.push_back(1);//rand() % 10);
+        	vect.push_back(rand() % 10);
 		cout << vect.back() << " ";
 	}
 
-	spMV sim(vect, argv[1], 10);
+	spMV sim(vect, argv[1], [](double val) { return (val < 0.7); }, 10);
 	sim.print_matrix();
 
-	vector<double> result;
-	result = sim.run();
-	cout << "Multiplication result:"; 
-	for (vector<double>::const_iterator i = result.begin(); i != result.end(); ++i)
-		cout << *i << ' ';
-	cout << endl;
+	int sim_steps = sim.run();
+	if (sim_steps < 10)
+		cout << "Converge in " << sim_steps << " steps" << endl;
+	cout << "Multiplication result:"<<endl; 
+	sim.print_vect();
 }

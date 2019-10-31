@@ -97,7 +97,7 @@ class CSRMatrix{
 		cout << endl;
 	}
 
-        vector<double> multiply(vector<double> v){
+	vector<double> multiply(vector<double> v){
 		int vsize = v.size();
 		assert(cols == vsize);
 
@@ -109,24 +109,24 @@ class CSRMatrix{
 			}
 		}
 		return result;
-        }
+    }
 
 	void read_matrix_from_csr(const char *file_path)
 	{
-                std::ifstream fin(file_path);
+		std::ifstream fin(file_path);
 		
-                fin >> cols >> rows >> nnz;
+        fin >> cols >> rows >> nnz;
 		int i;
 	  	for(i=0; i < cols+1; ++i)
-	    	{
-                        int data;
-                        fin >> data;
+	    {
+            int data;
+            fin >> data;
 			ai.push_back(data);
-	    	}
+	    }
 		for(i=0; i < nnz; ++i)
 		{
-                        int data;
-                        fin >> data;
+            int data;
+            fin >> data;
 			aj.push_back(data);
 		}
 		for(i=0; i < nnz; ++i)
@@ -140,27 +140,27 @@ class CSRMatrix{
 
         void read_matrix_from_file(const char* file_path)
         {
-                std::ifstream fin(file_path);
+            std::ifstream fin(file_path);
 		
-                fin >> rows >> cols >> nnz;
-                ai.push_back(0);
+            fin >> rows >> cols >> nnz;
+            ai.push_back(0);
 
-                int last_row = -1;
-                for (int i = 0; i < nnz; i++)
-                {
-                        int r, c;
-                        double data;
-                        fin >> r >> c >> data;
-                        values.push_back(data);
-                        aj.push_back(c);
-                        if (last_row != r) 
+            int last_row = -1;
+            for (int i = 0; i < nnz; i++)
+            {
+				int r, c;
+                double data;
+                fin >> r >> c >> data;
+                values.push_back(data);
+                aj.push_back(c);
+                if (last_row != r) 
 				for (int j = 0; j < r-last_row; j++)
-                                	ai.push_back(ai.back());
-                        last_row = r;
-                        ai.back() += 1;
-		}
+					ai.push_back(ai.back());
+                last_row = r;
+                ai.back() += 1;
+			}
 
-                fin.close();
+			fin.close();
         }//read_matrix
 };
 
@@ -175,13 +175,10 @@ class spMV{
 		injectedVect faulty_vect;
 		function<bool(double)> inject_criteria;
 
-        spMV(vector<double> x,
-	     const char* file_path,
-	     const function<bool(double)> &fct,
-	     int max_iter): matrix(file_path), faulty_vect(x), inject_criteria(fct){
-                vect = x;
-		step = 0;
-                max_iterations = max_iter;
+        spMV(vector<double> x, const char* file_path, const function<bool(double)> &fct, int max_iter): matrix(file_path), faulty_vect(x), inject_criteria(fct){
+			vect = x;
+			step = 0;
+            max_iterations = max_iter;
         }
 
 	void print_vect(){

@@ -53,6 +53,16 @@ class injectedVect{
 				cnt ++;
 		return cnt;
 	}
+	
+	int get_max_velocity(vector<double> v2){
+		int max_velocity = 0;
+		for(size_t i = 0; i < vect.size(); i++)
+		{
+			if(max_velocity < abs(v2[i] - vect[i]))
+				max_velocity = abs(v2[i] - vect[i]);
+		}
+		return max_velocity;
+	}
 };
 
 class CSRMatrix{
@@ -155,13 +165,15 @@ class CSRMatrix{
 };
 
 class spMV{
-   public:
-        int max_iterations;
-	int step;
-        vector<double> vect;
-	CSRMatrix matrix;
-	injectedVect faulty_vect;
-	function<bool(double)> inject_criteria;
+	private:
+		vector<int> failures_per_step;
+	public:
+		int max_iterations;
+		int step;
+		vector<double> vect;
+		CSRMatrix matrix;
+		injectedVect faulty_vect;
+		function<bool(double)> inject_criteria;
 
         spMV(vector<double> x,
 	     const char* file_path,
@@ -182,6 +194,13 @@ class spMV{
 		matrix.print();
 	}
 
+	void write_failure_to_file(string file_path){
+		ofstream fout(file_path, ios::app);
+		for (vector<int>::const_iterator i = failures_per_step.begin(); i != failures_per_step.end(); ++i)
+			fout << *i << ' ';
+		fout << endl;
+	}
+
 	int get_max_velocity(vector<double> v2){
 		// identify vector elements of high changing velocity
 		int max_velocity = 0;
@@ -196,7 +215,7 @@ class spMV{
 	int inject_failures(vector<double> v2){
 		int max_velocity = get_max_velocity(v2);
 		// if the elements did not changed
-		if (max_velocity == 0)
+		if (max_velocity < 0.00001)
 			return -1;
 		for(size_t i = 0; i < vect.size(); i++)
 		{
@@ -213,16 +232,20 @@ class spMV{
 		int i;
 		for (i = 0; i < max_iterations; i++)
 		{
-			result = matrix.multiply(vect);
-			faulty_vect = matrix.multiply(faulty_vect.vect);
+			// multiply the faulty vector
+			result = matrix.multiply(faulty_vect.vect);
 			// if the solution converged
-			if (get_max_velocity(result) == 0)
+			if (faulty_vect.get_max_velocity(result) == 0)
 				break;
+			faulty_vect.vect = result;
+			// multiply the correct matrix
+			result = matrix.multiply(vect);
 			step ++;
 			if (step == 1)
 				inject_failures(result);
 			vect = result;
-			cout << step << " failures: " << faulty_vect.get_total_corruptions(vect) << endl;
+			failures_per_step.push_back(faulty_vect.get_total_corruptions(vect));
+			cout << step << " failures: " << failures_per_step.back() << endl;
 		}
 		cout << "Final failure count: " << faulty_vect.get_total_corruptions(vect) << endl;
 		return step;
@@ -245,12 +268,15 @@ int main(int argc, char* argv[])
 		cout << vect.back() << " ";
 	}
 
-	spMV sim(vect, argv[1], [](double val) { return (val < 0.7); }, 10);
+	spMV sim(vect, argv[1], [](double val) { return (val >= 0) && (val < 0.7); }, 10);
 	sim.print_matrix();
 
 	int sim_steps = sim.run();
 	if (sim_steps < 10)
 		cout << "Converge in " << sim_steps << " steps" << endl;
+	
+	sim.write_failure_to_file(argv[1] + string(".out"));
+
 	cout << "Multiplication result:"<<endl; 
 	sim.print_vect();
 }

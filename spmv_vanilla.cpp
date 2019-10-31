@@ -249,31 +249,54 @@ class spMV{
 	}
 };
 
+function<bool(double)> get_injection_boundries(int param){
+	switch(param){
+		case 1:
+			return [](double val) { return (val >= 0) && (val < 0.1); };
+		case 2:
+			return [](double val) { return (val >= 0.1) && (val < 0.5); };
+		case 3:
+			return [](double val) { return (val >= 0.5) && (val < 0.9); };
+		case 4:
+			return [](double val) { return (val >= 0.9) && (val <= 1); };
+	}
+	return [](double val) { return (val < 0); };
+}
+
 int main(int argc, char* argv[])
 {
 	if (argc < 3)
 	{
-		cout << "Usage: " << argv[0] << " matrix_file vector_size" << endl;
+		cout << "Usage: " << argv[0] << " matrix_file vector_size [velocity]" << endl;
+		cout << "Velocity: [0 off; 1 xslow; 2 slow; 3 fast; 4 xfast]" << endl;
+		cout << "By default faults are not injected (off)" << endl;
 		return 1;
 	}
-	vector<double> vect;
 	int size = strtol(argv[2], NULL, 10);
-	cout << "Size: " << size << endl;
-	srand((unsigned) time(NULL));
-	for (int i =0; i < size; i++){
-        	vect.push_back(rand() % 10);
-		cout << vect.back() << " ";
+	cout << "Problem size: " << size << endl;
+
+	// get velocity for identifying injection sites in the vector
+	function<bool(double)> injection_fct = get_injection_boundries(0);
+	if (argc > 3){
+		injection_fct = get_injection_boundries(strtol(argv[3], NULL, 10));
 	}
 
-	spMV sim(vect, argv[1], [](double val) { return (val >= 0) && (val < 0.7); }, 10);
-	sim.print_matrix();
+	for (int loop = 0; loop < 1; loop ++){
+		// create random vector (values between -10 and 10)
+		vector<double> vect;
+		srand((unsigned) time(NULL));
+		for (int i =0; i < size; i++)
+				vect.push_back(rand() % 20 - 10);
 
-	int sim_steps = sim.run();
-	if (sim_steps < 10)
-		cout << "Converge in " << sim_steps << " steps" << endl;
-	
-	sim.write_failure_to_file(argv[1] + string(".out"));
+		spMV sim(vect, argv[1], injection_fct, 10);
+		//sim.print_matrix();
 
-	cout << "Multiplication result:"<<endl; 
-	sim.print_vect();
+		int sim_steps = sim.run();
+		if (sim_steps < 10)
+			cout << "Converged in " << sim_steps << " steps" << endl;
+
+		sim.write_failure_to_file(argv[1] + string(".out"));
+	}
+	//cout << "Multiplication result:"<<endl; 
+	//sim.print_vect();
 }

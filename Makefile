@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-Wall -Wextra -Werror -std=c++11 
+CFLAGS=-O3 -Wall -Wextra -Werror -std=c++14 
 
 %.o: %.cpp
 	    $(CC) $(CFLAGS) -c -o $@ $<

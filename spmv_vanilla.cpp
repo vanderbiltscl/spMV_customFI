@@ -145,13 +145,13 @@ class CSRMatrix{
 	    {
             int data;
             fin >> data;
-			ai.push_back(data);
+			ai.push_back(data - 1);
 	    }
 		for(i=0; i < nnz; ++i)
 		{
             int data;
             fin >> data;
-			aj.push_back(data);
+			aj.push_back(data - 1);
 		}
 		for(i=0; i < nnz; ++i)
 		{

@@ -7,16 +7,21 @@
 #include <sys/time.h>
 #include <cmath>
 #include <random>
-#include <ieee754.h>
+#include <bitset> 
 #include <functional>
+#include <algorithm>
 
 using namespace std;
 
+static_assert(sizeof(double) == sizeof(unsigned long long), "");
+
+union Converter { uint64_t i; double d; };
 
 class injectedVect{
    public:
 	vector<double> vect;
 	vector<int> potential_injection_sites;
+	size_t verbose = 1;
 	
 	injectedVect(vector<double> init_vect){
 		vect = init_vect;
@@ -40,22 +45,41 @@ class injectedVect{
         	uniform_int_distribution<int> dist(
 				0, potential_injection_sites.size() - 1);
 		int index = potential_injection_sites[dist(engine)];
-		ieee754_double random_element = {vect[index]};
-		random_element.ieee.mantissa1 |= 1u << 16; // set bit 16 of mantissa
-		vect[index] = random_element.d;
+		
+		Converter c;
+		c.d = vect[index];
+	    bitset<sizeof(double) * 8> b(c.i);
+		if (verbose){
+			cout << "Double value  : " << vect[index] << endl;
+			cout << "Int value : " << b.to_ulong() << endl;
+			cout << "BitSet : " << b.to_string() << endl;
+		}
+	   	
+		//b.flip(62); // flip the most significant exponent bit
+		b.flip(52); // flip the most insignificant exponent bit
+    	c.i = b.to_ullong();
+		
+		if (verbose){ 
+			cout << "BitSet : " << b.to_string() << endl;
+	    	cout << b.to_ulong() << endl;
+	    	cout << c.d << endl;
+		}	
+		
+		vect[index] = c.d;
 		return index;
 	}
 
 	int get_total_corruptions(vector<double> correct_vector){
 		unsigned int i, cnt = 0;
 		for (i=0; i<correct_vector.size(); i++)
-			if (correct_vector[i] != vect[i])
+			if (abs(correct_vector[i] - vect[i]) > 0.001){
 				cnt ++;
+			}
 		return cnt;
 	}
 	
-	int get_max_velocity(vector<double> v2){
-		int max_velocity = 0;
+	double get_max_velocity(vector<double> v2){
+		double max_velocity = 0;
 		for(size_t i = 0; i < vect.size(); i++)
 		{
 			if(max_velocity < abs(v2[i] - vect[i]))

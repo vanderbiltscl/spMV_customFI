@@ -125,10 +125,10 @@ class CSRMatrix{
 		int vsize = v.size();
 		assert(cols == vsize);
 
-                vector<double> result(v.size());
+        vector<double> result(v.size());
 		int r_index;
-                for(int i = 0; i < rows; i++){
-                        for(r_index = ai[i]; r_index < ai[i + 1]; r_index++){
+        for(int i = 0; i < rows; i++){
+            for(r_index = ai[i]; r_index < ai[i + 1]; r_index++){
 				result[i] += values[r_index] * v[aj[r_index]];
 			}
 		}
@@ -215,17 +215,28 @@ class spMV{
 		matrix.print();
 	}
 
-	void write_failure_to_file(string file_path){
+	void write_failure_to_file(string file_path, int velocity){
 		ofstream fout(file_path, ios::app);
-		fout << step << ' ';
-		for (vector<int>::const_iterator i = failures_per_step.begin(); i != failures_per_step.end(); ++i)
+		fout << velocity << ' ' << step << ' ';
+		
+		// if all entries are 0
+		if (all_of(failures_per_step.begin(), failures_per_step.end(), [](int i){return i==0;})){
+			fout << endl;
+			return;
+		}
+		
+		for (vector<int>::const_iterator i = failures_per_step.begin(); i != failures_per_step.end(); ++i){
 			fout << *i << ' ';
+			int vsize = vect.size();
+			if (*i == vsize or *i == 0)
+				break;
+		}
 		fout << endl;
 	}
 
-	int get_max_velocity(vector<double> v2){
+	double get_max_velocity(vector<double> v2){
 		// identify vector elements of high changing velocity
-		int max_velocity = 0;
+		double max_velocity = 0;
 		for(size_t i = 0; i < vect.size(); i++)
 		{
 			if(max_velocity < abs(v2[i] - vect[i]))
@@ -235,15 +246,16 @@ class spMV{
 	}
 
 	int inject_failures(vector<double> v2){
-		int max_velocity = get_max_velocity(v2);
+		double max_velocity = get_max_velocity(v2);
 		// if the elements did not changed
-		if (max_velocity < 0.00001)
+		if (max_velocity < 0.001)
 			return -1;
 		for(size_t i = 0; i < vect.size(); i++)
 		{
-			double velocity = abs(v2[i] - vect[i])/max_velocity;
-			if (inject_criteria(velocity))
+			double velocity = abs(v2[i] - vect[i])/max_velocity; 
+			if (inject_criteria(velocity)){
 				faulty_vect.add_injection_site(i);
+			}
 		}
 		return faulty_vect.inject_failure();
 	}

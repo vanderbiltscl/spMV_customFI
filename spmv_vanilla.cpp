@@ -302,44 +302,44 @@ int main(int argc, char* argv[])
 {
 	if (argc < 4)
 	{
-		cout << "Usage: " << argv[0] << " matrix_input_file vector_size output_file [velocity]" << endl;
-		cout << "Velocity: [0 off; 1 xslow; 2 slow; 3 fast; 4 xfast]" << endl;
-		cout << "By default faults are not injected (off)" << endl;
+		cout << "Usage: " << argv[0] << " matrix_input_file vector_size output_file" << endl;
 		return 1;
 	}
 	bool verbose = 0;
-	int size = strtol(argv[2], NULL, 10);
+	int v, size = strtol(argv[2], NULL, 10);
 	if (verbose)
 		cout << "Problem size: " << size << endl;
 
-	// get velocity for identifying injection sites in the vector
-	function<bool(double)> injection_fct = get_injection_boundries(0);
-	if (argc > 4){
-		injection_fct = get_injection_boundries(strtol(argv[4], NULL, 10));
-	}
-
 	srand((unsigned) time(NULL));
 	for (int loop = 0; loop < 1000; loop ++){
-		// create random vector (values between 0 and 20)
+		// create random vector (values between 0 and 100)
 		vector<double> vect;
 		for (int i =0; i < size; i++){
-			vect.push_back(rand() % 20);
+			vect.push_back(rand() % 2);
 		}
 
-		// create simulation environment
-		spMV sim(vect, argv[1], injection_fct, 100);
-		if (verbose)
-			sim.print_matrix();
+		// simulate injection for different velocities
+		for (v=0; v<5; v++){
+			function<bool(double)> injection_fct = get_injection_boundries(v);
+			
+			// create simulation environment
+			spMV sim(vect, argv[1], injection_fct, 100);
+			if (verbose)
+				sim.print_matrix();
 
-		int sim_steps = sim.run();
-		cout << sim_steps << " ";
+			int sim_steps = sim.run();
 
-		// write the number of failed sites per steps
-		sim.write_failure_to_file(argv[3]);
-		if (verbose){
-			cout << "steps" << endl << "Multiplication result:"<<endl; 
-			sim.print_vect();
+			// write the number of failed sites per steps
+			sim.write_failure_to_file(argv[3], v);
+			if (verbose){
+				cout << endl << "Steps: " << sim_steps;
+				cout << "Multiplication result:"<<endl; 
+				sim.print_vect();
+			}
 		}
+
+		if ((loop + 1) % 100 == 0)
+			cout << (loop + 1) / 10 << "% " << flush;
 	}
 	cout << endl;
 }

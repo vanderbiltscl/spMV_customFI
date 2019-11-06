@@ -96,6 +96,72 @@ class injectedVect{
 	}
 };
 
+class resilientGradient{
+	private:
+		int iteration = 0;
+		vector<double> previous1;
+		vector<double> previous2;
+	public:
+		resilientGradient(vector<double> v): previous1(v) {}
+		
+		resilientGradient(vector<double> v1,
+						  vector<double> v2): previous1(v1), previous2(v2) {}
+	
+		vector<double> first_gradient(vector<double> current, int iter){
+			assert(current.size() == previous1.size());
+			assert(iter > iteration);
+			vector<double> res;
+			for(size_t i = 0; i < current.size(); i++)
+				res.push_back(abs(current[i] - previous1[i])/(iter-iteration));
+			return res;
+		}
+	
+		vector<double> second_gradient(vector<double> current, int iter){
+			assert(current.size() == previous1.size());
+			assert(iter > iteration);
+			vector<double> res;
+			for(size_t i = 0; i < current.size(); i++)
+				res.push_back(abs(current[i] - previous1[i])/(iter-iteration));
+			return res;
+		}
+};
+
+class Vector{
+	public:
+		vector<double> vect;
+
+		Vector(size_t size){
+			vector<double> vect;
+			for (size_t i =0; i < size; i++)
+				vect.push_back(rand() % 100);
+			normalize();
+		}
+
+		void update(vector<double> v){
+				vect = v;
+				normalize();
+		}
+
+		void normalize(){
+			double sum = 0;
+			size_t i;
+			for (i=0; i<vect.size(); i++)
+				sum += (vect[i] * vect[i]);
+			sum = sqrt(sum);
+			for (i=0; i<vect.size(); i++)
+				vect[i] /= sum;
+		}
+
+		double norm_diffrence(vector<double> v){
+			double sum = 0;
+			size_t i;
+			for (i=0; i<vect.size(); i++)
+				sum += ((v[i] - vect[i]) * (v[i] - vect[i]));
+			sum = sqrt(sum);
+			return sum;
+		}
+};
+
 class CSRMatrix{
    public:
         int rows;

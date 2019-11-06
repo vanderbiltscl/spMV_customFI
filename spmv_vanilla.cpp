@@ -7,16 +7,21 @@
 #include <sys/time.h>
 #include <cmath>
 #include <random>
-#include <ieee754.h>
+#include <bitset> 
 #include <functional>
+#include <algorithm>
 
 using namespace std;
 
+static_assert(sizeof(double) == sizeof(unsigned long long), "");
+
+union Converter { uint64_t i; double d; };
 
 class injectedVect{
    public:
 	vector<double> vect;
 	vector<int> potential_injection_sites;
+	size_t verbose = 1;
 	
 	injectedVect(vector<double> init_vect){
 		vect = init_vect;
@@ -30,6 +35,12 @@ class injectedVect{
 		potential_injection_sites.clear();
 	}
 
+	void print_vect(){
+		for (vector<double>::const_iterator i = vect.begin(); i != vect.end(); ++i)
+			cout << *i << ' ';
+		cout << endl;
+	}
+
 	int inject_failure(){
 		if (potential_injection_sites.size() == 0)
 			return -1;
@@ -40,27 +51,47 @@ class injectedVect{
         	uniform_int_distribution<int> dist(
 				0, potential_injection_sites.size() - 1);
 		int index = potential_injection_sites[dist(engine)];
-		ieee754_double random_element = {vect[index]};
-		random_element.ieee.mantissa1 |= 1u << 16; // set bit 16 of mantissa
-		vect[index] = random_element.d;
+		
+		Converter c;
+		c.d = vect[index];
+	    bitset<sizeof(double) * 8> b(c.i);
+		if (verbose){
+			cout << "Double value  : " << vect[index] << endl;
+			cout << "Int value : " << b.to_ulong() << endl;
+			cout << "BitSet : " << b.to_string() << endl;
+		}
+	   	
+		b.flip(62); // flip the most significant exponent bit
+		//b.flip(52); // flip the most insignificant exponent bit
+    	c.i = b.to_ullong();
+		
+		if (verbose){ 
+			cout << "BitSet : " << b.to_string() << endl;
+	    	cout << b.to_ulong() << endl;
+	    	cout << c.d << endl;
+		}	
+		
+		vect[index] = c.d;
 		return index;
 	}
 
 	int get_total_corruptions(vector<double> correct_vector){
 		unsigned int i, cnt = 0;
 		for (i=0; i<correct_vector.size(); i++)
-			if (correct_vector[i] != vect[i])
+			if (abs(correct_vector[i] - vect[i]) > 0.001){
 				cnt ++;
+			}
 		return cnt;
 	}
-	
-	int get_max_velocity(vector<double> v2){
-		int max_velocity = 0;
+
+	double get_max_velocity(vector<double> v2){
+		double max_velocity = 0;
 		for(size_t i = 0; i < vect.size(); i++)
 		{
 			if(max_velocity < abs(v2[i] - vect[i]))
 				max_velocity = abs(v2[i] - vect[i]);
 		}
+		cout << max_velocity << endl;
 		return max_velocity;
 	}
 };
@@ -78,7 +109,7 @@ class CSRMatrix{
 		if(fn.substr(fn.find_last_of(".") + 1) == "csr")
 			read_matrix_from_csr(file_path);
 		else
-                	read_matrix_from_file(file_path);
+			read_matrix_from_file(file_path);
 	}
 
 	void print(){
@@ -101,13 +132,18 @@ class CSRMatrix{
 		int vsize = v.size();
 		assert(cols == vsize);
 
-                vector<double> result(v.size());
+        vector<double> result(v.size());
 		int r_index;
-                for(int i = 0; i < rows; i++){
-                        for(r_index = ai[i]; r_index < ai[i + 1]; r_index++){
+		double sum = 0;
+        for(int i = 0; i < rows; i++){
+            for(r_index = ai[i]; r_index < ai[i + 1]; r_index++){
 				result[i] += values[r_index] * v[aj[r_index]];
 			}
+			sum += result[i];
 		}
+		for (int i =0; i < rows; i++)
+			result[i] /= sum;
+
 		return result;
     }
 
@@ -121,13 +157,13 @@ class CSRMatrix{
 	    {
             int data;
             fin >> data;
-			ai.push_back(data);
+			ai.push_back(data - 1);
 	    }
 		for(i=0; i < nnz; ++i)
 		{
             int data;
             fin >> data;
-			aj.push_back(data);
+			aj.push_back(data - 1);
 		}
 		for(i=0; i < nnz; ++i)
 		{
@@ -152,7 +188,8 @@ class CSRMatrix{
                 double data;
                 fin >> r >> c >> data;
                 values.push_back(data);
-                aj.push_back(c);
+                aj.push_back(c - 1);
+				r = r - 1;
                 if (last_row != r) 
 				for (int j = 0; j < r-last_row; j++)
 					ai.push_back(ai.back());
@@ -191,17 +228,28 @@ class spMV{
 		matrix.print();
 	}
 
-	void write_failure_to_file(string file_path){
+	void write_failure_to_file(string file_path, int velocity){
 		ofstream fout(file_path, ios::app);
-		fout << step << ' ';
-		for (vector<int>::const_iterator i = failures_per_step.begin(); i != failures_per_step.end(); ++i)
+		fout << velocity << ' ' << step << ' ';
+		
+		// if all entries are 0
+		if (all_of(failures_per_step.begin(), failures_per_step.end(), [](int i){return i==0;})){
+			fout << endl;
+			return;
+		}
+		
+		for (vector<int>::const_iterator i = failures_per_step.begin(); i != failures_per_step.end(); ++i){
 			fout << *i << ' ';
+			int vsize = vect.size();
+			if (*i == vsize or *i == 0)
+				break;
+		}
 		fout << endl;
 	}
 
-	int get_max_velocity(vector<double> v2){
+	double get_max_velocity(vector<double> v2){
 		// identify vector elements of high changing velocity
-		int max_velocity = 0;
+		double max_velocity = 0;
 		for(size_t i = 0; i < vect.size(); i++)
 		{
 			if(max_velocity < abs(v2[i] - vect[i]))
@@ -211,15 +259,16 @@ class spMV{
 	}
 
 	int inject_failures(vector<double> v2){
-		int max_velocity = get_max_velocity(v2);
+		double max_velocity = get_max_velocity(v2);
 		// if the elements did not changed
-		if (max_velocity < 0.00001)
+		if (max_velocity < 0.001)
 			return -1;
 		for(size_t i = 0; i < vect.size(); i++)
 		{
-			double velocity = abs(v2[i] - vect[i])/max_velocity;
-			if (inject_criteria(velocity))
+			double velocity = abs(v2[i] - vect[i])/max_velocity; 
+			if (inject_criteria(velocity)){
 				faulty_vect.add_injection_site(i);
+			}
 		}
 		return faulty_vect.inject_failure();
 	}
@@ -233,7 +282,7 @@ class spMV{
 			// multiply the faulty vector
 			result = matrix.multiply(faulty_vect.vect);
 			// if the solution converged
-			if (faulty_vect.get_max_velocity(result) == 0)
+			if (faulty_vect.get_max_velocity(result) < 0.001)
 				break;
 			faulty_vect.vect = result;
 			// multiply the correct matrix
@@ -266,44 +315,48 @@ int main(int argc, char* argv[])
 {
 	if (argc < 4)
 	{
-		cout << "Usage: " << argv[0] << " matrix_input_file vector_size output_file [velocity]" << endl;
-		cout << "Velocity: [0 off; 1 xslow; 2 slow; 3 fast; 4 xfast]" << endl;
-		cout << "By default faults are not injected (off)" << endl;
+		cout << "Usage: " << argv[0] << " matrix_input_file vector_size output_file" << endl;
 		return 1;
 	}
 	bool verbose = 0;
-	int size = strtol(argv[2], NULL, 10);
+	int v, size = strtol(argv[2], NULL, 10);
 	if (verbose)
 		cout << "Problem size: " << size << endl;
 
-	// get velocity for identifying injection sites in the vector
-	function<bool(double)> injection_fct = get_injection_boundries(0);
-	if (argc > 4){
-		injection_fct = get_injection_boundries(strtol(argv[4], NULL, 10));
-	}
-
 	srand((unsigned) time(NULL));
-	for (int loop = 0; loop < 1000; loop ++){
-		// create random vector (values between 0 and 20)
+	for (int loop = 0; loop < 1; loop ++){
+		// create random vector (values between 0 and 100)
 		vector<double> vect;
+		int sum = 0;
 		for (int i =0; i < size; i++){
-			vect.push_back(rand() % 20);
+			vect.push_back(rand() % 100);
+			sum += vect.back();
+		}
+		for (int i =0; i < size; i++)
+			vect[i] /= sum;
+
+		// simulate injection for different velocities
+		for (v=0; v<5; v++){
+			function<bool(double)> injection_fct = get_injection_boundries(v);
+			
+			// create simulation environment
+			spMV sim(vect, argv[1], injection_fct, 1000);
+			if (verbose)
+				sim.print_matrix();
+
+			int sim_steps = sim.run();
+
+			// write the number of failed sites per steps
+			sim.write_failure_to_file(argv[3], v);
+			if (verbose){
+				cout << endl << "Steps: " << sim_steps << endl;
+				cout << "Multiplication result:"<<endl; 
+				sim.print_vect();
+			}
 		}
 
-		// create simulation environment
-		spMV sim(vect, argv[1], injection_fct, 100);
-		if (verbose)
-			sim.print_matrix();
-
-		int sim_steps = sim.run();
-		cout << sim_steps << " ";
-
-		// write the number of failed sites per steps
-		sim.write_failure_to_file(argv[3]);
-		if (verbose){
-			cout << "steps" << endl << "Multiplication result:"<<endl; 
-			sim.print_vect();
-		}
+		if ((loop + 1) % 100 == 0)
+			cout << (loop + 1) / 10 << "% " << flush;
 	}
 	cout << endl;
 }

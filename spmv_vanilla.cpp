@@ -35,6 +35,12 @@ class injectedVect{
 		potential_injection_sites.clear();
 	}
 
+	void print_vect(){
+		for (vector<double>::const_iterator i = vect.begin(); i != vect.end(); ++i)
+			cout << *i << ' ';
+		cout << endl;
+	}
+
 	int inject_failure(){
 		if (potential_injection_sites.size() == 0)
 			return -1;
@@ -55,8 +61,8 @@ class injectedVect{
 			cout << "BitSet : " << b.to_string() << endl;
 		}
 	   	
-		//b.flip(62); // flip the most significant exponent bit
-		b.flip(52); // flip the most insignificant exponent bit
+		b.flip(62); // flip the most significant exponent bit
+		//b.flip(52); // flip the most insignificant exponent bit
     	c.i = b.to_ullong();
 		
 		if (verbose){ 
@@ -77,7 +83,7 @@ class injectedVect{
 			}
 		return cnt;
 	}
-	
+
 	double get_max_velocity(vector<double> v2){
 		double max_velocity = 0;
 		for(size_t i = 0; i < vect.size(); i++)
@@ -85,6 +91,7 @@ class injectedVect{
 			if(max_velocity < abs(v2[i] - vect[i]))
 				max_velocity = abs(v2[i] - vect[i]);
 		}
+		cout << max_velocity << endl;
 		return max_velocity;
 	}
 };
@@ -102,7 +109,7 @@ class CSRMatrix{
 		if(fn.substr(fn.find_last_of(".") + 1) == "csr")
 			read_matrix_from_csr(file_path);
 		else
-                	read_matrix_from_file(file_path);
+			read_matrix_from_file(file_path);
 	}
 
 	void print(){
@@ -127,11 +134,16 @@ class CSRMatrix{
 
         vector<double> result(v.size());
 		int r_index;
+		double sum = 0;
         for(int i = 0; i < rows; i++){
             for(r_index = ai[i]; r_index < ai[i + 1]; r_index++){
 				result[i] += values[r_index] * v[aj[r_index]];
 			}
+			sum += result[i];
 		}
+		for (int i =0; i < rows; i++)
+			result[i] /= sum;
+
 		return result;
     }
 
@@ -176,7 +188,8 @@ class CSRMatrix{
                 double data;
                 fin >> r >> c >> data;
                 values.push_back(data);
-                aj.push_back(c);
+                aj.push_back(c - 1);
+				r = r - 1;
                 if (last_row != r) 
 				for (int j = 0; j < r-last_row; j++)
 					ai.push_back(ai.back());
@@ -269,7 +282,7 @@ class spMV{
 			// multiply the faulty vector
 			result = matrix.multiply(faulty_vect.vect);
 			// if the solution converged
-			if (faulty_vect.get_max_velocity(result) == 0)
+			if (faulty_vect.get_max_velocity(result) < 0.001)
 				break;
 			faulty_vect.vect = result;
 			// multiply the correct matrix
@@ -311,19 +324,23 @@ int main(int argc, char* argv[])
 		cout << "Problem size: " << size << endl;
 
 	srand((unsigned) time(NULL));
-	for (int loop = 0; loop < 1000; loop ++){
+	for (int loop = 0; loop < 1; loop ++){
 		// create random vector (values between 0 and 100)
 		vector<double> vect;
+		int sum = 0;
 		for (int i =0; i < size; i++){
-			vect.push_back(rand() % 2);
+			vect.push_back(rand() % 100);
+			sum += vect.back();
 		}
+		for (int i =0; i < size; i++)
+			vect[i] /= sum;
 
 		// simulate injection for different velocities
 		for (v=0; v<5; v++){
 			function<bool(double)> injection_fct = get_injection_boundries(v);
 			
 			// create simulation environment
-			spMV sim(vect, argv[1], injection_fct, 100);
+			spMV sim(vect, argv[1], injection_fct, 1000);
 			if (verbose)
 				sim.print_matrix();
 
@@ -332,7 +349,7 @@ int main(int argc, char* argv[])
 			// write the number of failed sites per steps
 			sim.write_failure_to_file(argv[3], v);
 			if (verbose){
-				cout << endl << "Steps: " << sim_steps;
+				cout << endl << "Steps: " << sim_steps << endl;
 				cout << "Multiplication result:"<<endl; 
 				sim.print_vect();
 			}

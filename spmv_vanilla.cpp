@@ -61,7 +61,7 @@ class injectedVect{
 			cout << "BitSet : " << b.to_string() << endl;
 		}
 	   	
-		b.flip(62); // flip the most significant exponent bit
+		b.flip(57); // flip the middle exponent bit
 		//b.flip(52); // flip the most insignificant exponent bit
     	c.i = b.to_ullong();
 		
@@ -131,7 +131,17 @@ class Vector{
 		vector<double> vect;
 
 		Vector(size_t size){
-			vector<double> vect;
+			for (size_t i =0; i < size; i++)
+				vect.push_back(rand() % 100);
+			normalize();
+		}
+
+		Vector(vector<double> v){
+			vect = v;
+		}
+		
+		void randomize(size_t size){
+			vect.clear();
 			for (size_t i =0; i < size; i++)
 				vect.push_back(rand() % 100);
 			normalize();
@@ -390,23 +400,17 @@ int main(int argc, char* argv[])
 		cout << "Problem size: " << size << endl;
 
 	srand((unsigned) time(NULL));
+	Vector vect(size);
 	for (int loop = 0; loop < 1; loop ++){
 		// create random vector (values between 0 and 100)
-		vector<double> vect;
-		int sum = 0;
-		for (int i =0; i < size; i++){
-			vect.push_back(rand() % 100);
-			sum += vect.back();
-		}
-		for (int i =0; i < size; i++)
-			vect[i] /= sum;
+		vect.randomize(size);
 
 		// simulate injection for different velocities
-		for (v=0; v<5; v++){
+		for (v=2; v<3; v++){
 			function<bool(double)> injection_fct = get_injection_boundries(v);
 			
 			// create simulation environment
-			spMV sim(vect, argv[1], injection_fct, 1000);
+			spMV sim(vect.vect, argv[1], injection_fct, 1000);
 			if (verbose)
 				sim.print_matrix();
 

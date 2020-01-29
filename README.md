@@ -8,3 +8,9 @@ The matrix is stored in the CSR format, with one array for the non-zero elements
 
 The vectors x and y are simple contiguous arrays of floating-point values.
 
+#### Input data
+
+Matrixes are downloaded from the University of Florida Sparse Matrix Collection:
+[https://www.cise.ufl.edu/research/sparse/matrices/list_by_id.html](https://www.cise.ufl.edu/research/sparse/matrices/list_by_id.html)
+
+Initial values for the vector are generated randomly.

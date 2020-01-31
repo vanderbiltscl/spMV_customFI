@@ -278,6 +278,8 @@ class CSRMatrix{
 class spMV{
 	private:
 		vector<int> failures_per_step;
+		vector<int> const_elements_per_step;
+		vector<int> slow_elements_per_step;
 	public:
 		int max_iterations;
 		int step;
@@ -305,23 +307,26 @@ class spMV{
 		matrix.print();
 	}
 
-	void write_failure_to_file(string file_path, int velocity){
-		ofstream fout(file_path, ios::app);
-		fout << velocity << ' ' << step << ' ';
+	void write_failure_to_file(int velocity){
+		ofstream fout(file_path + ".failures", ios::app);
+		fout << velocity << ' ';
 		
-		// if all entries are 0
-		if (all_of(failures_per_step.begin(), failures_per_step.end(), [](int i){return i==0;})){
-			fout << endl;
-			return;
-		}
-		
-		for (vector<int>::const_iterator i = failures_per_step.begin(); i != failures_per_step.end(); ++i){
+		for (vector<int>::const_iterator i = failures_per_step.begin(); i != failures_per_step.end(); ++i)
 			fout << *i << ' ';
-			int vsize = vect.size();
-			if (*i == vsize or *i == 0)
-				break;
-		}
 		fout << endl;
+	}
+
+	void write_slow_elements_to_file(int velocity){
+		ofstream fout_c(file_path + ".constant", ios::app);
+		ofstream fout_s(file_path + ".slow", ios::app);
+		fout_c << velocity << ' ';
+		fout_s << velocity << ' ';
+		for (vector<int>::const_iterator i = const_elements_per_step.begin(); i !=const_elements_per_step.end(); ++i)
+			fout_c << *i << ' ';
+		for (vector<int>::const_iterator i = slow_elements_per_step.begin(); i !=slow_elements_per_step.end(); ++i)
+			fout_s << *i << ' ';
+		fout_c << endl;
+		fout_s << endl;
 	}
 
 	double get_max_velocity(vector<double> v2){
@@ -351,6 +356,21 @@ class spMV{
 	}
 	
 
+	void store_const_elem(vector<double> v){
+		int con=0, slow=0;
+		for (size_t i=0; i< v.size(); i++){
+			if (abs(v[i]-vect[i])<0.001){
+				con ++;
+				continue;
+			}
+			if (abs(v[i]-vect[i])<0.01){
+				slow++;
+			}
+		}
+		const_elements_per_step.push_back(con);
+		slow_elements_per_step.push_back(slow);
+	}
+
 	int run(){
 		vector<double> result;
 		int i;
@@ -365,11 +385,14 @@ class spMV{
 			// multiply the correct matrix
 			result = matrix.multiply(vect);
 			step ++;
-			if (step == 1)
+			if (step == 2)
 				inject_failures(result);
+			store_const_elem(result);
 			vect = result;
+
 			failures_per_step.push_back(faulty_vect.get_total_corruptions(vect));
 		}
+
 		return step;
 	}
 };
@@ -411,14 +434,18 @@ int main(int argc, char* argv[])
 			function<bool(double)> injection_fct = get_injection_boundries(v);
 			
 			// create simulation environment
-			spMV sim(vect.vect, argv[1], injection_fct, 1000);
+			spMV sim(vect.vect, argv[1], injection_fct, 1000, argv[3]);
 			if (verbose)
 				sim.print_matrix();
 
 			int sim_steps = sim.run();
 
 			// write the number of failed sites per steps
-			sim.write_failure_to_file(argv[3], v);
+			sim.write_failure_to_file(v);
+			sim.write_slow_elements_to_file(v);
+			//cout << "Convergence in " << sim_steps << " steps" << endl;
+			cout << v << ' ' << sim_steps << endl;
+		
 			if (verbose){
 				cout << endl << "Multiplication result:"<<endl; 
 				sim.print_vect();

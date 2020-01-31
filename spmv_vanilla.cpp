@@ -425,12 +425,12 @@ int main(int argc, char* argv[])
 
 	srand((unsigned) time(NULL));
 	Vector vect(size);
-	for (int loop = 0; loop < 1; loop ++){
+	for (int loop = 0; loop < 100; loop ++){
 		// create random vector (values between 0 and 100)
 		vect.randomize(size);
 
 		// simulate injection for different velocities
-		for (v=2; v<3; v++){
+		for (v=1; v<5; v++){
 			function<bool(double)> injection_fct = get_injection_boundries(v);
 			
 			// create simulation environment

@@ -21,7 +21,7 @@ class injectedVect{
    public:
 	vector<double> vect;
 	vector<int> potential_injection_sites;
-	size_t verbose = 1;
+	size_t verbose = 0;
 	
 	injectedVect(vector<double> init_vect){
 		vect = init_vect;
@@ -63,7 +63,7 @@ class injectedVect{
 	   	
 		b.flip(57); // flip the middle exponent bit
 		//b.flip(52); // flip the most insignificant exponent bit
-    	c.i = b.to_ullong();
+		c.i = b.to_ullong();
 		
 		if (verbose){ 
 			cout << "BitSet : " << b.to_string() << endl;
@@ -91,7 +91,6 @@ class injectedVect{
 			if(max_velocity < abs(v2[i] - vect[i]))
 				max_velocity = abs(v2[i] - vect[i]);
 		}
-		cout << max_velocity << endl;
 		return max_velocity;
 	}
 };
@@ -131,9 +130,7 @@ class Vector{
 		vector<double> vect;
 
 		Vector(size_t size){
-			for (size_t i =0; i < size; i++)
-				vect.push_back(rand() % 100);
-			normalize();
+			randomize(size);
 		}
 
 		Vector(vector<double> v){
@@ -287,11 +284,14 @@ class spMV{
 		CSRMatrix matrix;
 		injectedVect faulty_vect;
 		function<bool(double)> inject_criteria;
+		string file_path;
 
-        spMV(vector<double> x, const char* file_path, const function<bool(double)> &fct, int max_iter): matrix(file_path), faulty_vect(x), inject_criteria(fct){
+        spMV(vector<double> x, const char* file_path,
+	     const function<bool(double)> &fct, int max_iter,
+             string fp): matrix(file_path), faulty_vect(x), inject_criteria(fct), file_path(fp){
 			vect = x;
 			step = 0;
-            max_iterations = max_iter;
+			max_iterations = max_iter;
         }
 
 	void print_vect(){
@@ -419,14 +419,10 @@ int main(int argc, char* argv[])
 			// write the number of failed sites per steps
 			sim.write_failure_to_file(argv[3], v);
 			if (verbose){
-				cout << endl << "Steps: " << sim_steps << endl;
-				cout << "Multiplication result:"<<endl; 
+				cout << endl << "Multiplication result:"<<endl; 
 				sim.print_vect();
 			}
 		}
-
-		if ((loop + 1) % 100 == 0)
-			cout << (loop + 1) / 10 << "% " << flush;
 	}
 	cout << endl;
 }

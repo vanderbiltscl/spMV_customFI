@@ -21,7 +21,7 @@ class injectedVect{
    public:
 	vector<double> vect;
 	vector<int> potential_injection_sites;
-	size_t verbose = 1;
+	size_t verbose = 0;
 	
 	injectedVect(vector<double> init_vect){
 		vect = init_vect;
@@ -61,9 +61,9 @@ class injectedVect{
 			cout << "BitSet : " << b.to_string() << endl;
 		}
 	   	
-		b.flip(62); // flip the most significant exponent bit
+		b.flip(57); // flip the middle exponent bit
 		//b.flip(52); // flip the most insignificant exponent bit
-    	c.i = b.to_ullong();
+		c.i = b.to_ullong();
 		
 		if (verbose){ 
 			cout << "BitSet : " << b.to_string() << endl;
@@ -91,9 +91,82 @@ class injectedVect{
 			if(max_velocity < abs(v2[i] - vect[i]))
 				max_velocity = abs(v2[i] - vect[i]);
 		}
-		cout << max_velocity << endl;
 		return max_velocity;
 	}
+};
+
+class resilientGradient{
+	private:
+		int iteration = 0;
+		vector<double> previous1;
+		vector<double> previous2;
+	public:
+		resilientGradient(vector<double> v): previous1(v) {}
+		
+		resilientGradient(vector<double> v1,
+						  vector<double> v2): previous1(v1), previous2(v2) {}
+	
+		vector<double> first_gradient(vector<double> current, int iter){
+			assert(current.size() == previous1.size());
+			assert(iter > iteration);
+			vector<double> res;
+			for(size_t i = 0; i < current.size(); i++)
+				res.push_back(abs(current[i] - previous1[i])/(iter-iteration));
+			return res;
+		}
+	
+		vector<double> second_gradient(vector<double> current, int iter){
+			assert(current.size() == previous1.size());
+			assert(iter > iteration);
+			vector<double> res;
+			for(size_t i = 0; i < current.size(); i++)
+				res.push_back(abs(current[i] - previous1[i])/(iter-iteration));
+			return res;
+		}
+};
+
+class Vector{
+	public:
+		vector<double> vect;
+
+		Vector(size_t size){
+			randomize(size);
+		}
+
+		Vector(vector<double> v){
+			vect = v;
+		}
+		
+		void randomize(size_t size){
+			vect.clear();
+			for (size_t i =0; i < size; i++)
+				vect.push_back(rand() % 100);
+			normalize();
+		}
+
+		void update(vector<double> v){
+				vect = v;
+				normalize();
+		}
+
+		void normalize(){
+			double sum = 0;
+			size_t i;
+			for (i=0; i<vect.size(); i++)
+				sum += (vect[i] * vect[i]);
+			sum = sqrt(sum);
+			for (i=0; i<vect.size(); i++)
+				vect[i] /= sum;
+		}
+
+		double norm_diffrence(vector<double> v){
+			double sum = 0;
+			size_t i;
+			for (i=0; i<vect.size(); i++)
+				sum += ((v[i] - vect[i]) * (v[i] - vect[i]));
+			sum = sqrt(sum);
+			return sum;
+		}
 };
 
 class CSRMatrix{
@@ -139,8 +212,9 @@ class CSRMatrix{
             for(r_index = ai[i]; r_index < ai[i + 1]; r_index++){
 				result[i] += values[r_index] * v[aj[r_index]];
 			}
-			sum += result[i];
+			sum += (result[i] * result[i]);
 		}
+		sum = sqrt(sum);
 		for (int i =0; i < rows; i++)
 			result[i] /= sum;
 
@@ -204,6 +278,8 @@ class CSRMatrix{
 class spMV{
 	private:
 		vector<int> failures_per_step;
+		vector<int> const_elements_per_step;
+		vector<int> slow_elements_per_step;
 	public:
 		int max_iterations;
 		int step;
@@ -211,11 +287,14 @@ class spMV{
 		CSRMatrix matrix;
 		injectedVect faulty_vect;
 		function<bool(double)> inject_criteria;
+		string file_path;
 
-        spMV(vector<double> x, const char* file_path, const function<bool(double)> &fct, int max_iter): matrix(file_path), faulty_vect(x), inject_criteria(fct){
+        spMV(vector<double> x, const char* file_path,
+	     const function<bool(double)> &fct, int max_iter,
+             string fp): matrix(file_path), faulty_vect(x), inject_criteria(fct), file_path(fp){
 			vect = x;
 			step = 0;
-            max_iterations = max_iter;
+			max_iterations = max_iter;
         }
 
 	void print_vect(){
@@ -228,23 +307,26 @@ class spMV{
 		matrix.print();
 	}
 
-	void write_failure_to_file(string file_path, int velocity){
-		ofstream fout(file_path, ios::app);
-		fout << velocity << ' ' << step << ' ';
+	void write_failure_to_file(int velocity){
+		ofstream fout(file_path + ".failures", ios::app);
+		fout << velocity << ' ';
 		
-		// if all entries are 0
-		if (all_of(failures_per_step.begin(), failures_per_step.end(), [](int i){return i==0;})){
-			fout << endl;
-			return;
-		}
-		
-		for (vector<int>::const_iterator i = failures_per_step.begin(); i != failures_per_step.end(); ++i){
+		for (vector<int>::const_iterator i = failures_per_step.begin(); i != failures_per_step.end(); ++i)
 			fout << *i << ' ';
-			int vsize = vect.size();
-			if (*i == vsize or *i == 0)
-				break;
-		}
 		fout << endl;
+	}
+
+	void write_slow_elements_to_file(int velocity){
+		ofstream fout_c(file_path + ".constant", ios::app);
+		ofstream fout_s(file_path + ".slow", ios::app);
+		fout_c << velocity << ' ';
+		fout_s << velocity << ' ';
+		for (vector<int>::const_iterator i = const_elements_per_step.begin(); i !=const_elements_per_step.end(); ++i)
+			fout_c << *i << ' ';
+		for (vector<int>::const_iterator i = slow_elements_per_step.begin(); i !=slow_elements_per_step.end(); ++i)
+			fout_s << *i << ' ';
+		fout_c << endl;
+		fout_s << endl;
 	}
 
 	double get_max_velocity(vector<double> v2){
@@ -274,6 +356,21 @@ class spMV{
 	}
 	
 
+	void store_const_elem(vector<double> v){
+		int con=0, slow=0;
+		for (size_t i=0; i< v.size(); i++){
+			if (abs(v[i]-vect[i])<0.001){
+				con ++;
+				continue;
+			}
+			if (abs(v[i]-vect[i])<0.01){
+				slow++;
+			}
+		}
+		const_elements_per_step.push_back(con);
+		slow_elements_per_step.push_back(slow);
+	}
+
 	int run(){
 		vector<double> result;
 		int i;
@@ -288,11 +385,14 @@ class spMV{
 			// multiply the correct matrix
 			result = matrix.multiply(vect);
 			step ++;
-			if (step == 1)
+			if (step == 2)
 				inject_failures(result);
+			store_const_elem(result);
 			vect = result;
+
 			failures_per_step.push_back(faulty_vect.get_total_corruptions(vect));
 		}
+
 		return step;
 	}
 };
@@ -324,39 +424,33 @@ int main(int argc, char* argv[])
 		cout << "Problem size: " << size << endl;
 
 	srand((unsigned) time(NULL));
-	for (int loop = 0; loop < 1; loop ++){
+	Vector vect(size);
+	for (int loop = 0; loop < 100; loop ++){
 		// create random vector (values between 0 and 100)
-		vector<double> vect;
-		int sum = 0;
-		for (int i =0; i < size; i++){
-			vect.push_back(rand() % 100);
-			sum += vect.back();
-		}
-		for (int i =0; i < size; i++)
-			vect[i] /= sum;
+		vect.randomize(size);
 
 		// simulate injection for different velocities
-		for (v=0; v<5; v++){
+		for (v=1; v<5; v++){
 			function<bool(double)> injection_fct = get_injection_boundries(v);
 			
 			// create simulation environment
-			spMV sim(vect, argv[1], injection_fct, 1000);
+			spMV sim(vect.vect, argv[1], injection_fct, 1000, argv[3]);
 			if (verbose)
 				sim.print_matrix();
 
 			int sim_steps = sim.run();
 
 			// write the number of failed sites per steps
-			sim.write_failure_to_file(argv[3], v);
+			sim.write_failure_to_file(v);
+			sim.write_slow_elements_to_file(v);
+			//cout << "Convergence in " << sim_steps << " steps" << endl;
+			cout << v << ' ' << sim_steps << endl;
+		
 			if (verbose){
-				cout << endl << "Steps: " << sim_steps << endl;
-				cout << "Multiplication result:"<<endl; 
+				cout << endl << "Multiplication result:"<<endl; 
 				sim.print_vect();
 			}
 		}
-
-		if ((loop + 1) % 100 == 0)
-			cout << (loop + 1) / 10 << "% " << flush;
 	}
 	cout << endl;
 }

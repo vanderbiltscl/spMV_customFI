@@ -212,8 +212,9 @@ class CSRMatrix{
             for(r_index = ai[i]; r_index < ai[i + 1]; r_index++){
 				result[i] += values[r_index] * v[aj[r_index]];
 			}
-			sum += result[i];
+			sum += (result[i] * result[i]);
 		}
+		sum = sqrt(sum);
 		for (int i =0; i < rows; i++)
 			result[i] /= sum;
 
